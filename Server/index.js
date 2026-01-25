@@ -9,12 +9,13 @@ const Player = require("./config/Player");
 const Game = require("./config/Game");
 
 const app = express();
+//create http server
 const server = http.createServer(app);
 
+//bind socket.io Server to http server
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"],
   },
 });
 
@@ -32,72 +33,84 @@ const rooms = {};
 io.on("connection", (socket) => {
   { /*Code for singleplayer game */ }
   
-  socket.on("startSinglePlayer", () => {
-    const singleGame = new Game();
-    const player = new Player(socket.id, "SinglePlayer");
+  {/*startsingleplayer code */}
+  // socket.on("startSinglePlayer", () => {
+  //   const singleGame = new Game();
+  //   const player = new Player(socket.id, "SinglePlayer");
 
-    singleGame.addPlayer(player);
+  //   singleGame.addPlayer(player);
 
-    const frame = singleGame.getUnUsedFrame(frames);
-    const answer = titleMap[frame];
+  //   const frame = singleGame.getUnUsedFrame(frames);
+  //   const answer = titleMap[frame];
 
-    console.log(`Selected frame: ${frame}`);
-    console.log(`Corresponding answer: ${answer}`);
+  //   // console.log(`Selected frame: ${frame}`);
+  //   // console.log(`Corresponding answer: ${answer}`);
 
-    singleGame.setNewFrame(frame, answer);
+  //   singleGame.setNewFrame(frame, answer);
 
-    socket.singleGame = singleGame;
-    socket.emit("singlePlayerStarted", frame);
-  })
+  //   socket.singleGame = singleGame;
+  //   socket.emit("singlePlayerStarted", frame);
+  // })
 
-  socket.on("submitSingleGuess", (guess) => {
-    const game = socket.singleGame;
-    if (!game) return;
+  {
+    /*singlePlayer guessing logic */
+  }
+  // socket.on("submitSingleGuess", (guess) => {
+  //   //store single game instance in game
+  //   const game = socket.singleGame;
 
-    const player = game.getPlayers()[0];
-    if (!player) return;
+  //   if (!game) return;
 
-    const correctAnswer = game.correctAnswer?.toLowerCase();
-    const userGuess = guess.toLowerCase().trim();
+  //   //only one player at index 0
+  //   const player = game.getPlayers()[0];
+  //   if (!player) return;
 
-    if (userGuess === correctAnswer) {
+  //   const correctAnswer = game.correctAnswer?.toLowerCase();
+  //   const userGuess = guess.toLowerCase().trim();
+
+  //   if (userGuess === correctAnswer) {
       
-      game.correct=true;
-      player.addScore(1);
+  //     game.correct=true;
+  //     player.addScore(1);
 
-      socket.emit("singleGuessResult", {
-        correct:game.correct,
-        score: player.score,
-        message: "✅ Correct!",
-      });
-    }else {
-      socket.emit("singleGameOver", {
-        message: "Game Over!",
-        score: game.getPlayers()[0].score,
-      });
-      game.singleGameReset();
-    }
-  })
+  //     socket.emit("singleGuessResult", {
+  //       correct:game.correct,
+  //       score: player.score,
+  //       message: "✅ Correct!",
+  //     });
+  //   }else {
+  //     socket.emit("singleGameOver", {
+  //       message: "Game Over!",
+  //       score: game.getPlayers()[0].score,
+  //     });
+  //     game.singleGameReset();
+  //   }
+  // })
 
-  socket.on("nextSingleFrame", () => {
-    const game = socket.singleGame;
-    if (!game) return;
+  {
+    /*singlePlayer next frame logic */
+  }
+  // socket.on("nextSingleFrame", () => {
+  //   const game = socket.singleGame;
+  //   if (!game) return;
 
-    if (!game.correct) {
-      socket.emit("singleGameOver", {
-        message: "Game Over!",
-        score: game.getPlayers()[0].score,
-      });
-      return;
-    }
+  //   //check if previous guess correct
+  //   if (!game.correct) {
+  //     socket.emit("singleGameOver", {
+  //       message: "Game Over!",
+  //       score: game.getPlayers()[0].score,
+  //     });
+  //     return;
+  //   }
 
-    const frame = game.getUnUsedFrame(frames);
-    const answer = titleMap[frame];
-    game.setNewFrame(frame, answer);
+  //   const frame = game.getUnUsedFrame(frames);
+  //   const answer = titleMap[frame];
+  //   game.setNewFrame(frame, answer);
 
-     socket.emit("nextSingleFrame",frame,);
-  })
+  //    socket.emit("nextSingleFrame",frame,);
+  // })
 
+  {/* reset singleplayer  */}
   // socket.on("resetSinglePlayer", () => {
   //   if (socket.singleGame) {
   //     socket.singleGame.reset();
@@ -106,6 +119,7 @@ io.on("connection", (socket) => {
 
   //   socket.emit("singlePlayerReset");
   // });
+
 
   {/*Code for multiplayer game */ }
   console.log(`Client connected: ${socket.id}`);
@@ -116,7 +130,7 @@ io.on("connection", (socket) => {
     room.game.resetTimer();
     room.game.resetPlayerState();
 
-    // random frame and correct answer
+    // generate random frame and correct answer
     const frame = room.game.getUnUsedFrame(frames);
     const answer = titleMap[frame];
 
@@ -124,8 +138,10 @@ io.on("connection", (socket) => {
     // console.log(`Selected frame: ${frame}`);
     // console.log(`Corresponding answer: ${answer}`);
 
+    //set frame and correct anser for backend 
     room.game.setNewFrame(frame, answer);
 
+    //send frame to all player 
     io.to(roomCode).emit("newFrame", frame);
 
     room.timer = setInterval(() => {
@@ -181,10 +197,11 @@ io.on("connection", (socket) => {
     }
   };
 
-  //
+  //correct anser guess in chat
   socket.on("send_message", (data) => {
     const { roomCode, username, message } = data;
 
+    //ignore empty spaces
     if (!message?.trim()) return;
 
     const room = rooms[roomCode];
@@ -193,6 +210,7 @@ io.on("connection", (socket) => {
     const player = room.game.getPlayers().find((p) => p.id === socket.id);
     if (!player) return;
 
+    //convert both correct anser and user guess/message to loercase
     const correctAnswer = room.game.correctAnswer?.toLowerCase();
     const guess = message.trim().toLowerCase();
 
@@ -239,7 +257,7 @@ io.on("connection", (socket) => {
   //Create Room
   socket.on("createRoom", ({ roomCode, username }) => {
     if (rooms[roomCode]) {
-      socket.emit("createRoooError", "Room code already exists.");
+      socket.emit("create Room Error, Room code already exists.");
       return;
     }
 
@@ -247,6 +265,7 @@ io.on("connection", (socket) => {
     const newGame = new Game();
     newGame.addPlayer(newPlayer);
 
+    //room[key]={ key:{game:GameObject,timer:null}, }
     rooms[roomCode] = {
       game: newGame,
       timer: null,
@@ -264,6 +283,7 @@ io.on("connection", (socket) => {
 
   //Join Room
   socket.on("joinRoom", ({ roomCode, username }) => {
+    //room=rooms[key]
     const room = rooms[roomCode];
 
     if (!room) {

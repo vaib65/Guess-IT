@@ -15,7 +15,9 @@ class Game {
   }
 
   getUnUsedFrame(allFrames) {
-    const unUsedFrames = allFrames.filter((frame) => !this.usedFrames.includes(frame));
+    const unUsedFrames = allFrames.filter(
+      (frame) => !this.usedFrames.includes(frame)
+    );
 
     if (unUsedFrames.length === 0) {
       return null;
@@ -28,6 +30,7 @@ class Game {
 
     return selectedFrame;
   }
+
   //add new frame
   setNewFrame(frame, answer) {
     this.currentFrame = frame;
@@ -51,11 +54,6 @@ class Game {
     );
   }
 
-  //method check for last round
-  checkForLastRound() {
-    return this.currentRound === this.totalRounds;
-  }
-
   // method get time
   getTime() {
     return this.time;
@@ -71,6 +69,11 @@ class Game {
     this.isStarted = true;
   }
 
+  //method check for last round
+  checkForLastRound() {
+    return this.currentRound === this.totalRounds;
+  }
+  
   //start new round
   startNewRound() {
     this.playerList.forEach((player) => {
@@ -92,7 +95,6 @@ class Game {
       player.hasGuessed = false;
       player.resetScore();
     });
-
   }
 
   //reset singleGame

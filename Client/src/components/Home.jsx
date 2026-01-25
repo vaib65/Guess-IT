@@ -19,19 +19,18 @@ const Home = () => {
             Guess.IT
           </h1>
         </div>
-        <div>
+        <div className=" flex">
           <button
             onClick={handleSingleClick}
-            className="text-4xl font-semibold border-3 border-solid border-white bg-green-500 hover:bg-green-400 w-[200px] mr-10 cursor-pointer"
+            className="text-4xl lg:text-4xl font-semibold border-3 border-solid border-white bg-green-500 hover:bg-green-400  w-[200px] mr-10 cursor-pointer"
           >
             Single Player
           </button>
-          
-          
+
           <Link to="/room">
-            <button className="text-4xl font-semibold border-3 border-solid border-white bg-green-500 hover:bg-green-400 w-[200px] cursor-pointer">
+            <button className="text-4xl lg:text-4xl font-semibold border-3 border-solid border-white bg-green-500 hover:bg-green-400 w-[200px] cursor-pointer">
               Multi Player
-          </button>
+            </button>
           </Link>
         </div>
       </div>

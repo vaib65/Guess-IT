@@ -1,26 +1,28 @@
 import React, { useContext } from 'react'
 import { useNavigate } from "react-router-dom";
 import { GameContext } from '../../context/GameContext'
+import InputField from '../ui/Input';
+import Button from '../ui/Button';
 
-
-const InputField = ({ value, onChange, placeholder }) => (
-  <input
-    className="w-full mb-4 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-  />
-);
-
-const Button = ({ onClick, disabled, children }) => (
-  <button
-    className="w-full h-10 rounded-[19px] text-white bg-[#2bab2b] hover:bg-[#1d851d] mt-3 cursor-pointer outline-none"
-    onClick={onClick}
-    disabled={disabled}
-  >
-    {children}
-  </button>
-);
+// //reusable component fro input field
+// const InputField = ({ value, onChange, placeholder }) => (
+//   <input
+//     className="w-full mb-4 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+//     value={value}
+//     onChange={onChange}
+//     placeholder={placeholder}
+//   />
+// );
+// //reusable component for button
+// const Button = ({ onClick, disabled, children }) => (
+//   <button
+//     className="w-full h-10 rounded-[19px] text-white bg-[#2bab2b] hover:bg-[#1d851d] mt-3 cursor-pointer outline-none"
+//     onClick={onClick}
+//     disabled={disabled}
+//   >
+//     {children}
+//   </button>
+// );
 
 export default function CreateRoomPage() {
   const { username, setUsername,roomCode,setRoomCode, createRoom, joinRoom } = useContext(GameContext);

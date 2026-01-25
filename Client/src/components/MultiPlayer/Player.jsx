@@ -8,7 +8,7 @@ export default function Player({ player, order }) {
   return (
     <div
       className={`h-[calc(100%/7)] flex items-center px-4 ${
-        hasGuessed ? "bg-[greenyellow]" : ""
+        hasGuessed ? "bg-[#17c551]" : ""
       }`}
     >
       <div className="flex flex-row items-center gap-4 text-black w-full">

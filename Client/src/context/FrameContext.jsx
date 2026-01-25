@@ -1,7 +1,6 @@
 import { createContext, useEffect, useState } from "react";
-import { io } from "socket.io-client";
 
-const socket = io.connect("https://guess-it-server.onrender.com");
+import { socket } from "../config/Socket";
 
 export const FrameContext = createContext({
   frame: null,
@@ -83,7 +82,9 @@ export const FrameContextProvider = ({ children }) => {
 
   //  Submit guess
   const handleSubmitClick = () => {
+    //check if empty
     if (!guess.trim()) return;
+    
     socket.emit("submitSingleGuess", guess.trim());
   };
 

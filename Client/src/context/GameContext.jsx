@@ -1,8 +1,9 @@
 import { createContext, useEffect, useState } from "react";
-import { io } from "socket.io-client";
 
-const socket = io.connect("https://guess-it-server.onrender.com");
+import { socket } from "../config/Socket";
 
+
+import { socket } from "../config/Socket";
 export const GameContext = createContext({
   username: "",
   setUsername: () => { },
@@ -67,6 +68,7 @@ export const GameContextProvider = ({ children }) => {
         { username: "server", message, color: "blue" },
       ]);
     });
+    
     socket.on("startNewRound", ({ round })=> {
       setRound(round);
     });

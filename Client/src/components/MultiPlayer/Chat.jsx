@@ -3,9 +3,9 @@ import { GameContext } from "../../context/GameContext";
 import ScrollToBottom from "react-scroll-to-bottom";
 
 export default function Chat() {
-  const { messages, sendGuess } = useContext(GameContext);
+  const { messages, sendGuess} = useContext(GameContext);
   const [message, setMessage] = useState("");
-
+  
   return (
     <div className="h-[75vh] flex flex-col">
       {/* Scrollable message area */}
@@ -23,7 +23,7 @@ export default function Chat() {
           </div>
         ))}
       </ScrollToBottom>
-
+ 
       {/* Input form */}
       <form
         className="flex items-center gap-2 p-3 border-t border-black"

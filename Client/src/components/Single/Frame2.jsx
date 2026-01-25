@@ -21,7 +21,7 @@ export default function Frame2() {
     if (gameOver !== null) {
       navigate("/final", { state: { score: gameOver } });
     }
-  }, [gameOver, navigate]);
+  }, [gameOver]);
 
   return (
     <main className="flex flex-col items-center justify-center">
