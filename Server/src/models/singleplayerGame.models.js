@@ -1,15 +1,15 @@
 class SingleGame {
     constructor() {
-        this.usedFrames = [],
-        this.currentFrame = null,
-        this.correctAnswer = null,
-        this.isOver = false,
+        this.usedFrames = [];
+        this.currentFrame = null;
+        this.correctAnswer = null;
+        this.isOver = false;
         this.score = 0;
     }
 
     getUnUsedFrame(frames) {
         //filter frames which are not used  
-        const available = frames.filter((f) => !this.usedFrames(f));
+        const available = frames.filter((f) => !this.usedFrames.includes(f));
         if (!available.length) return null;
 
         //select random frame from available frames

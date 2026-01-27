@@ -1,24 +1,26 @@
 import Player from "../models/players.models.js";
-import MultiplayerGame from "../models/MultiplayerGame.js";
+import MultiplayerGame from "../models/multiplayerGame.models.js";
 import {
   createRoom,
   getRoom,
   deleteRoom,
   roomExists,
   getAllRooms,
-} from "../store/memory.js";
+} from "../store/multiplayerGame-rooms.js";
+import { setUserRoom,clearUserRoom,getUserRoom } from "../store/user-room-map.js";
 
 import { frames, titleMap } from "../data/frames.js";
 
-const startGame = (io, roomCode) => {
-  const room = getRoom(roomCode);
+const startGame =async (io, roomCode) => {
+  const room = await getRoom(roomCode);
+
   if (!room) {
     return;
   }
 
   const { game } = room;
 
-  game.resetTimer();
+  game.setRoundTimer();
   game.getPlayers().forEach((p) => p.resetState());
 
   const frame = game.getUnUsedFrame(frames);
@@ -35,29 +37,30 @@ const startGame = (io, roomCode) => {
   if (room.timer) clearInterval(room.timer);
 
   room.timer = setInterval(() => {
-    game.tick();
+    const remaining=game.getRemainingTime()
 
-    io.to(roomCode).emit("timerUpdate", game.time);
+    io.to(roomCode).emit("timerUpdate", remaining);
 
-    if (game.time <= 0) {
+    if (remaining <= 0) {
       clearInterval(room.timer);
       room.timer = null;
+
+      io.to(roomCode).emit("roundEnded", {
+        message: "Time's up!",
+      });
+
+      io.to(roomCode).emit("correctAnswer", {
+        answer: game.correctAnswer,
+      });
+
+      endGame(io, roomCode);
     }
-
-    io.to(roomCode).emit("roundEnded", {
-      message: "Time's up!",
-    });
-
-    io.to(roomCode).emit("correctAnswer", {
-      answer: game.correctAnswer,
-    });
-
-    endRound(io, roomCode);
   }, 1000);
+
 };
 
-const endGame = (io, roomCode) => {
-  const room = getRoom(roomCode);
+const endGame = async(io, roomCode) => {
+  const room = await getRoom(roomCode);
   if (!room) return;
 
   const { game } = room;
@@ -68,9 +71,9 @@ const endGame = (io, roomCode) => {
     setTimeout(() => {
       io.to(roomCode).emit("updatePlayers", game.getPlayers());
       io.to(roomCode).emit("startNewRound", {
-        round: game.current,
+        round: game.currentRound,
       });
-      startRound(io, roomCode);
+      startGame(io, roomCode);
     }, 3000);
   } else {
     const players = game.getPlayers();
@@ -91,23 +94,58 @@ const endGame = (io, roomCode) => {
 export const registerMultiplayerHandlers = (io, socket) => {
   console.log("Multiplayer socket ready:", socket.id);
 
+  {/* reconnect room handler */ }
+  socket.on("reconnectPlayer", async ({ userId }) => {
+    if (!userId) return;
+
+    const roomCode = await getUserRoom(userId);
+    if (!roomCode) return;
+
+    const room = await getRoom(roomCode);
+    if (!room) return;
+
+    const game = room.game;
+
+    const player = game.getPlayers().find((p) => p.userId === userId);
+    if (!player) return;
+
+    //attach socket id to player
+    player.socketId = socket.id;
+
+    socket.join(roomCode);
+    await setUserRoom(userId,roomCode)
+    
+    socket.emit("reconnected", {
+      roomCode,
+      frame: game.currentFrame,
+      time: game.getRemainingTime(),
+      players: game.getPlayers(),
+      round: game.currentRound,
+    });
+  })
+
   {/*create Room handler */}
-  socket.on("createRoom", ({ roomCode, username }) => {
-    if (!roomCode || !username) {
+  socket.on("createRoom",async ({ roomCode, username,userId}) => {
+    if (!roomCode || !username || !userId) {
       socket.emit("Error", "Room code and username required");
       return;
     }
 
-    if (roomExists(roomCode)) {
+    if (await roomExists(roomCode)) {
       socket.emit("createRoomError", "Room already exists");
       return;
     }
 
     const game = new MultiplayerGame();
-    const player = new Player(socket.id, username);
+    const player = new Player({
+      userId, 
+      socketId: socket.id,
+      username,
+    });
 
     game.addPlayer(player);
-    createRoom(roomCode, game);
+    await createRoom(roomCode, game);
+    await setUserRoom(userId, roomCode);
 
     socket.join(roomCode);
     socket.emit("room created", { roomCode });
@@ -126,30 +164,35 @@ export const registerMultiplayerHandlers = (io, socket) => {
     {
       /*join Room handler */
     }
-  socket.on("joinRoom", ({ roomCode, username }) => {
-    if (!roomCode || !username) {
+  socket.on("joinRoom",async ({ roomCode, username,userId }) => {
+    if (!roomCode || !username || !userId) {
       socket.emit("Error", "Room code and username required");
       return;
     }
 
-    if (!roomExists(roomCode)) {
+   if (!(await roomExists(roomCode)))  {
       socket.emit("joinRoomError", "Room not found");
       return;
     }
 
-    const room = getRoom(roomCode);
+    const room = await getRoom(roomCode);
     const game = room.game;
 
     const alreadyJoined = game
       .getPlayers()
-      .some((player) => player.id === socket.id);
+      .some((player) => player.userId === userId);
 
     if (alreadyJoined) {
       return;
     }
 
-    const player = new Player(socket.id, username);
+    const player = new Player({
+      userId,
+      socketId: socket.id,
+      username,
+    });
     game.addPlayer(player);
+    await setUserRoom(userId, roomCode);
 
     socket.join(roomCode);
 
@@ -163,75 +206,78 @@ export const registerMultiplayerHandlers = (io, socket) => {
 
     console.log(`Player ${username} joined room ${roomCode}`);
 
-    if (game.isStarted()) {
+    if (game.isStarted) {
       socket.emit("startGame", { message: "Game already in progress" });
       socket.emit("startNewRound", { round: game.currentRound });
       socket.emit("newFrame", game.currentFrame);
       socket.emit("timerUpdate", game.time);
     }
 
-    if (game.getPlayers.length >= 2 && !game.isStarted) {
-      game.startGame();
+   if (!game.isStarted && game.getPlayers().length === 2) {
+     game.startGame();
 
-      io.to(roomCode).emit("startGame", {
-        message: "Game starting...",
-      });
+     io.to(roomCode).emit("startGame", {
+       message: "Game starting...",
+     });
 
-      startRound(io, roomCode);
-    }
+     startGame(io, roomCode);
+   }
+
   });
 
     {
       /*users guess handler */
     }
-  socket.on("sendGuess", ({ roomCode, username, message }) => {
+  socket.on("sendGuess",async ({ roomCode, username, message }) => {
     if (!message.trim()) {
       return
     }
 
-    const room = getRoom(roomCode);
+    const room = await getRoom(roomCode);
     if (!room) {
       return
     }
 
-    const game = room.game()
-    const player = game.getPlayers.find((p) => p.id === socket.id);
+    const game = room.game
+    const player = game.getPlayers().find((p) => p.socketId === socket.id);;
 
-    const guess = message.trim().toLowerCase();
-    const correctAnswer = game.correctAnswer?.toLowerCase();
+   const guess = message.trim().toLowerCase();
+   const correctAnswer = game.correctAnswer?.toLowerCase();
 
-    if (guess === correctAnswer && !player.hasGuessed) {
-        player.hasGuessed = true;
-      player.addScore(1);
-      
-      io.to(roomCode).emit("scoreUpdate", {
-        username: player.username,
-        score: player.score,
-      });
+   if (guess === correctAnswer) {
+     player.hasGuessed = true;
+     player.addScore(1);
 
-      io.to(roomCode).emit("receive_message", {
-        username: "server",
-        message: `${player.username} guessed correctly`,
-        color: "green",
-      });
+     io.to(roomCode).emit("scoreUpdate", {
+       username: player.username,
+       score: player.score,
+     });
 
-      io.to(roomCode).emit("updatePlayers", game.getPlayers());
+     io.to(roomCode).emit("receive_message", {
+       username: "server",
+       message: `${player.username} guessed correctly`,
+       color: "green",
+     });
 
-      if (game.hasEveryoneGuessed()) {
-        clearInterval(room.timer);
-        room.timer = null;
+     io.to(roomCode).emit("updatePlayers", game.getPlayers());
 
-        io.to(roomCode).emit("roundEnded", {
-          message: "All players guessed correctly",
-        });
+     if (game.hasEveryoneGuessed()) {
+       clearInterval(room.timer);
+       room.timer = null;
 
-        io.to(roomCode).emit("correctAnswer", {
-          answer: game.correctAnswer,
-        });
-        endGame(io, roomCode);
-      }
-      return;
-    }
+       io.to(roomCode).emit("roundEnded", {
+         message: "All players guessed correctly",
+       });
+
+       io.to(roomCode).emit("correctAnswer", {
+         answer: game.correctAnswer,
+       });
+
+       endGame(io, roomCode);
+     }
+     return;
+   }
+
 
     io.to(roomCode).emit("receive_message", {
       username,
@@ -241,17 +287,22 @@ export const registerMultiplayerHandlers = (io, socket) => {
   })
 
   {/*disconnect handler */ }
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async() => {
     console.log("client disconnect", socket.id);
 
-    for (const [roomCode, room] of getAllRooms()) {
+    const rooms = await getAllRooms();
+    for (const roomKey of rooms) {
+      const roomCode = roomKey.replace("room:", "");
+      const room = await getRoom(roomCode);
       const game = room.game;
       const players = game.getPlayers();
 
-      const player = players.find((p) => p.id === socket.id)
+      const player = players.find((p) => p.socketId === socket.id);
       if (!player) continue;
 
       game.removePlayer(socket.id);
+      await clearUserRoom(player.userId);
+
 
       io.to(roomCode).emit("receive_message", {
         username: "server",
@@ -278,7 +329,7 @@ export const registerMultiplayerHandlers = (io, socket) => {
         if (room.timer) {
           clearInterval(room.timer)
         }
-        deleteRoom(roomCode)
+        await deleteRoom(roomCode);
         console.log(`Room ${roomCode} deleted`);
       }
       break;

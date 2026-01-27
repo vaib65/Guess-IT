@@ -1,22 +1,23 @@
- class Player {
-   constructor(id, username) {
-     this.id = id;
-     this.username = username;
-     this.score = 0;
-     this.hasGuessed = false;
-   }
+class Player {
+  constructor({ userId, socketId, username }) {
+    this.userId = userId;
+    this.socketId = socketId;
+    this.username = username;
+    this.score = 0;
+    this.hasGuessed = false;
+  }
 
-   addScore(points = 1) {
-     this.score += points;
-   }
+  addScore(points = 1) {
+    this.score += points;
+  }
 
-   resetScore() {
-     this.score = 0;
-   }
+  resetScore() {
+    this.score = 0;
+  }
 
-   resetState() {
-     this.hasGuessed = false;
-   }
- }
+  resetState() {
+    this.hasGuessed = false;
+  }
+}
 
-export default Player
+export default Player;

@@ -1,10 +1,10 @@
 export default class MultiplayerGame {
   constructor() {
     this.players = [];
-    this.time = 60;
     this.totalTime = 60;
     this.totalRounds = 5;
     this.currentRound = 1;
+    this.roundEndsAt = null;
 
     this.currentFrame = null;
     this.correctAnswer = null;
@@ -13,13 +13,24 @@ export default class MultiplayerGame {
     this.isStarted = false;
   }
 
+  setRoundTimer() {
+    this.roundEndsAt = Date.now() + this.totalTime * 1000;
+  }
+
+  getRemainingTime() {
+    return Math.max(
+      0, Math.floor((this.roundEndsAt - Date.now()) / 1000)
+    )
+  }
+
   addPlayer(player) {
     this.players.push(player);
   }
 
-  removePlayer(playerId) {
-    this.players = this.players.filter((p) => p.id !== playerId);
+  removePlayer(socketId) {
+    this.players = this.players.filter((p) => p.socketId !== socketId);
   }
+  
 
   getPlayers() {
     return this.players;
@@ -39,13 +50,6 @@ export default class MultiplayerGame {
     this.correctAnswer = answer;
   }
 
-  resetTimer() {
-    this.time = this.totalTime;
-  }
-
-  tick() {
-    this.time--;
-  }
 
   hasEveryoneGuessed() {
     return this.players.every((p) => p.hasGuessed);
@@ -65,10 +69,11 @@ export default class MultiplayerGame {
   }
 
   resetGame() {
-    this.time = this.totalTime;
     this.currentRound = 1;
     this.isStarted = false;
     this.usedFrames = [];
+    this.currentFrame = null;
+    this.correctAnswer = null;
     this.players.forEach((p) => {
       p.resetState();
       p.resetScore();
