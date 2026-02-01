@@ -1,24 +1,21 @@
-import React, { useContext } from "react";
-import { GameContext } from "../../context/GameContext";
 
-export default function FrameDisplay() {
-  const { frame } = useContext(GameContext);
 
+const FrameDisplay = ({ frame, loading }) => {
   return (
-    <div className="flex justify-center items-center h-full w-full">
-      {frame ? (
-        <div className="w-full max-w-[800px] aspect-video">
-          <img
-            src={`/images/${frame}`}
-            alt="Guess this frame"
-            className="w-full h-full object-cover rounded-md shadow"
-          />
-        </div>
+    <div className="w-full h-full bg-zinc-900 border border-zinc-700 rounded-md flex items-center justify-center overflow-hidden">
+      {loading ? (
+        <span className="text-gray-400">Loading frame...</span>
+      ) : frame ? (
+        <img
+          src={`/images/${frame}`}
+          alt="Game frame"
+          className="w-full h-full object-contain"
+        />
       ) : (
-        <p className="text-gray-800 text-xl text-center">
-          Waiting for frame...
-        </p>
+        <span className="text-gray-500">Waiting for game to start…</span>
       )}
     </div>
   );
-}
+};
+
+export default FrameDisplay;

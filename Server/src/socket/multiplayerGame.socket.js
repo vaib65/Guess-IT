@@ -1,18 +1,15 @@
 import Player from "../models/players.models.js";
 import MultiplayerGame from "../models/multiplayerGame.models.js";
-import {
-  createRoom,
-  getRoom,
-  deleteRoom,
-  roomExists,
-  getAllRooms,
-} from "../store/multiplayerGame-rooms.js";
-import { setUserRoom,clearUserRoom,getUserRoom } from "../store/user-room-map.js";
-
 import { frames, titleMap } from "../data/frames.js";
+import {
+  createMemoryRoom,
+  deleteMemoryRoom,
+  getAllMemoryRooms,
+  getMemoryRoom,
+} from "../store/multi/memoryRooms.js";
 
-const startGame =async (io, roomCode) => {
-  const room = await getRoom(roomCode);
+const startRound = (io, roomCode) => {
+  const room = getMemoryRoom(roomCode);
 
   if (!room) {
     return;
@@ -37,7 +34,7 @@ const startGame =async (io, roomCode) => {
   if (room.timer) clearInterval(room.timer);
 
   room.timer = setInterval(() => {
-    const remaining=game.getRemainingTime()
+    const remaining = game.getRemainingTime();
 
     io.to(roomCode).emit("timerUpdate", remaining);
 
@@ -56,24 +53,33 @@ const startGame =async (io, roomCode) => {
       endGame(io, roomCode);
     }
   }, 1000);
-
 };
 
-const endGame = async(io, roomCode) => {
-  const room = await getRoom(roomCode);
+const endGame = (io, roomCode) => {
+  const room = getMemoryRoom(roomCode);
   if (!room) return;
 
   const { game } = room;
+
+  const activePlayers = game.getPlayers().filter((p) => p.connected);
+
+  if (activePlayers.length < 2) {
+    game.resetGame();
+    io.to(roomCode).emit("gameStopped", {
+      message: "Game stopped due to insufficient players.",
+    });
+    return;
+  }
 
   if (!game.isLastRound()) {
     game.startNewRound();
 
     setTimeout(() => {
-      io.to(roomCode).emit("updatePlayers", game.getPlayers());
+      io.to(roomCode).emit("updatePlayers", game.getSafePlayers());
       io.to(roomCode).emit("startNewRound", {
         round: game.currentRound,
       });
-      startGame(io, roomCode);
+      startRound(io, roomCode);
     }, 3000);
   } else {
     const players = game.getPlayers();
@@ -94,245 +100,257 @@ const endGame = async(io, roomCode) => {
 export const registerMultiplayerHandlers = (io, socket) => {
   console.log("Multiplayer socket ready:", socket.id);
 
-  {/* reconnect room handler */ }
-  socket.on("reconnectPlayer", async ({ userId }) => {
-    if (!userId) return;
-
-    const roomCode = await getUserRoom(userId);
-    if (!roomCode) return;
-
-    const room = await getRoom(roomCode);
-    if (!room) return;
-
-    const game = room.game;
-
-    const player = game.getPlayers().find((p) => p.userId === userId);
-    if (!player) return;
-
-    //attach socket id to player
-    player.socketId = socket.id;
-
-    socket.join(roomCode);
-    await setUserRoom(userId,roomCode)
-    
-    socket.emit("reconnected", {
-      roomCode,
-      frame: game.currentFrame,
-      time: game.getRemainingTime(),
-      players: game.getPlayers(),
-      round: game.currentRound,
-    });
-  })
-
-  {/*create Room handler */}
-  socket.on("createRoom",async ({ roomCode, username,userId}) => {
+  {
+    /*create Room handler */
+  }
+  socket.on("createRoom", ({ roomCode, username, userId }) => {
     if (!roomCode || !username || !userId) {
       socket.emit("Error", "Room code and username required");
       return;
     }
 
-    if (await roomExists(roomCode)) {
+    if (getMemoryRoom(roomCode)) {
       socket.emit("createRoomError", "Room already exists");
       return;
     }
 
     const game = new MultiplayerGame();
     const player = new Player({
-      userId, 
+      userId,
       socketId: socket.id,
       username,
     });
 
     game.addPlayer(player);
-    await createRoom(roomCode, game);
-    await setUserRoom(userId, roomCode);
+    createMemoryRoom(roomCode, game);
 
     socket.join(roomCode);
-    socket.emit("room created", { roomCode });
+    socket.emit("roomCreated", { roomCode });
 
-    io.to(roomCode).emit("receive_message", {
-      username: "server",
-      message: `${username} create the room.`,
-      color: "blue",
-    });
-
-    io.to(roomCode).emit("updatePlayers", game.getPlayers());
+    io.to(roomCode).emit("updatePlayers", game.getSafePlayers());
 
     console.log(`${roomCode} created by ${username}`);
   });
 
-    {
-      /*join Room handler */
-    }
-  socket.on("joinRoom",async ({ roomCode, username,userId }) => {
+  {
+    /*join Room handler */
+  }
+  socket.on("joinRoom", ({ roomCode, username, userId }) => {
     if (!roomCode || !username || !userId) {
       socket.emit("Error", "Room code and username required");
       return;
     }
 
-   if (!(await roomExists(roomCode)))  {
+    const room = getMemoryRoom(roomCode);
+    if (!room) {
       socket.emit("joinRoomError", "Room not found");
       return;
     }
 
-    const room = await getRoom(roomCode);
     const game = room.game;
 
-    const alreadyJoined = game
-      .getPlayers()
-      .some((player) => player.userId === userId);
-
-    if (alreadyJoined) {
+    const exists = game.getPlayers().some((p) => p.userId === userId);
+    if (exists) {
+      socket.emit("joinRoomError", "Player already in room");
       return;
     }
 
-    const player = new Player({
-      userId,
-      socketId: socket.id,
-      username,
-    });
+    const player = new Player({ userId, username, socketId: socket.id });
     game.addPlayer(player);
-    await setUserRoom(userId, roomCode);
 
     socket.join(roomCode);
+    socket.emit("roomJoined", { roomCode });
 
-    io.to(roomCode).emit("receive_message", {
-      username: "server",
-      message: `${username} joined the room.`,
-      color: "blue",
+    // send full state to THIS socket
+    socket.emit("reconnected", {
+      roomCode,
+      frame: game.currentFrame,
+      time: game.getRemainingTime(),
+      players: game.getSafePlayers(),
+      round: game.currentRound,
     });
 
-    io.to(roomCode).emit("updatePlayers", game.getPlayers());
+    io.to(roomCode).emit("updatePlayers", game.getSafePlayers());
 
     console.log(`Player ${username} joined room ${roomCode}`);
-
-    if (game.isStarted) {
-      socket.emit("startGame", { message: "Game already in progress" });
-      socket.emit("startNewRound", { round: game.currentRound });
-      socket.emit("newFrame", game.currentFrame);
-      socket.emit("timerUpdate", game.time);
-    }
-
-   if (!game.isStarted && game.getPlayers().length === 2) {
-     game.startGame();
-
-     io.to(roomCode).emit("startGame", {
-       message: "Game starting...",
-     });
-
-     startGame(io, roomCode);
-   }
-
   });
 
-    {
-      /*users guess handler */
-    }
-  socket.on("sendGuess",async ({ roomCode, username, message }) => {
-    if (!message.trim()) {
-      return
-    }
+  {
+    /* reconnect room handler */
+  }
+  socket.on("reconnectPlayer", ({ userId }) => {
+    if (!userId) return;
 
-    const room = await getRoom(roomCode);
-    if (!room) {
-      return
-    }
+    const rooms = getAllMemoryRooms();
 
-    const game = room.game
-    const player = game.getPlayers().find((p) => p.socketId === socket.id);;
-
-   const guess = message.trim().toLowerCase();
-   const correctAnswer = game.correctAnswer?.toLowerCase();
-
-   if (guess === correctAnswer) {
-     player.hasGuessed = true;
-     player.addScore(1);
-
-     io.to(roomCode).emit("scoreUpdate", {
-       username: player.username,
-       score: player.score,
-     });
-
-     io.to(roomCode).emit("receive_message", {
-       username: "server",
-       message: `${player.username} guessed correctly`,
-       color: "green",
-     });
-
-     io.to(roomCode).emit("updatePlayers", game.getPlayers());
-
-     if (game.hasEveryoneGuessed()) {
-       clearInterval(room.timer);
-       room.timer = null;
-
-       io.to(roomCode).emit("roundEnded", {
-         message: "All players guessed correctly",
-       });
-
-       io.to(roomCode).emit("correctAnswer", {
-         answer: game.correctAnswer,
-       });
-
-       endGame(io, roomCode);
-     }
-     return;
-   }
-
-
-    io.to(roomCode).emit("receive_message", {
-      username,
-      message,
-      color: "black",
-    });
-  })
-
-  {/*disconnect handler */ }
-  socket.on("disconnect", async() => {
-    console.log("client disconnect", socket.id);
-
-    const rooms = await getAllRooms();
-    for (const roomKey of rooms) {
-      const roomCode = roomKey.replace("room:", "");
-      const room = await getRoom(roomCode);
+    for (const [roomCode, room] of rooms.entries()) {
       const game = room.game;
-      const players = game.getPlayers();
-
-      const player = players.find((p) => p.socketId === socket.id);
+      const player = game.getPlayers().find((p) => p.userId === userId);
       if (!player) continue;
 
-      game.removePlayer(socket.id);
-      await clearUserRoom(player.userId);
+      // ALWAYS attach socket
+      player.socketId = socket.id;
+      player.connected = true;
 
+      if (player.disconnectTimeout) {
+        clearTimeout(player.disconnectTimeout);
+        player.disconnectTimeout = null;
+      }
+
+      socket.join(roomCode);
+
+      // 🔥 ALWAYS hydrate this socket
+      socket.emit("reconnected", {
+        roomCode,
+        frame: game.currentFrame,
+        time: game.getRemainingTime(),
+        players: game.getSafePlayers(),
+        round: game.currentRound,
+      });
+
+      // 🔥 ALSO sync others
+      io.to(roomCode).emit("updatePlayers", game.getSafePlayers());
+
+      console.log(`Hydrated ${player.username} in room ${roomCode}`);
+      return;
+    }
+  });
+
+  {
+    /* start Game handler */
+  }
+  socket.on("startGame", ({ roomCode, userId }) => {
+    const room = getMemoryRoom(roomCode);
+    if (!room) return;
+
+    const game = room.game;
+
+    // only host can start
+    const host = game.getPlayers()[0];
+
+    if (!host || host.userId !== userId) return;
+
+    if (game.isStarted) return;
+
+    // mark game as started
+    game.startGame();
+
+    //  notify all players to show countdown modal
+    io.to(roomCode).emit("gameStarting");
+
+    //  start actual game after 5 seconds
+    setTimeout(() => {
+      startRound(io, roomCode);
+    }, 5000);
+  });
+
+  {
+    /*users guess handler */
+  }
+  socket.on("sendGuess", ({ roomCode, username, message }) => {
+    const room = getMemoryRoom(roomCode);
+    if (!room) {
+      return;
+    }
+
+    const game = room.game;
+    const player = game.getPlayers().find((p) => p.socketId === socket.id);
+    if (!player || !player.connected) return;
+
+    const guess = message.trim().toLowerCase();
+    if (!guess) return;
+
+    //already guessed
+    if (player.hasGuessed) {
+      socket.emit("receive_message", {
+        username: "server",
+        message: "You already guessed correctly",
+        color: "gray",
+      });
+      return;
+    }
+
+    const correctAnswer = game.correctAnswer?.toLowerCase();
+    //correct guess first time guess
+    if (guess === correctAnswer) {
+      player.hasGuessed = true;
+      player.addScore(1);
+
+      io.to(roomCode).emit("scoreUpdate", {
+        username: player.username,
+        score: player.score,
+      });
 
       io.to(roomCode).emit("receive_message", {
         username: "server",
-        message: `${player.username} has left the game`,
-        color:"red"
-      })
+        message: `${player.username} guessed correctly`,
+        color: "green",
+      });
 
-      io.to(roomCode).emit("updatePlayers", game.getPlayers());
+      io.to(roomCode).emit("updatePlayers", game.getSafePlayers());
 
-      if (game.isStarted && game.getPlayers().length < 2) {
-        if (room.timer) {
-          clearInterval(room.timer);
-          room.timer = null;
-        }
+      if (game.hasEveryoneGuessed()) {
+        clearInterval(room.timer);
+        room.timer = null;
 
-        game.resetGame();
-        
-         io.to(roomCode).emit("gameStopped", {
-           message: "Game stopped due to insufficient players.",
-         });
+        io.to(roomCode).emit("roundEnded");
+
+        io.to(roomCode).emit("correctAnswer", {
+          answer: game.correctAnswer,
+        });
+
+        endGame(io, roomCode);
       }
-
-      if (game.getPlayers().length === 0) {
-        if (room.timer) {
-          clearInterval(room.timer)
-        }
-        await deleteRoom(roomCode);
-        console.log(`Room ${roomCode} deleted`);
-      }
-      break;
+      return;
     }
-  })
+
+    //wrong guess normal message
+    io.to(roomCode).emit("receive_message", {
+      username: player.username,
+      message,
+      color: "black",
+    });
+  });
+
+  {
+    /*disconnect handler */
+  }
+  socket.on("disconnect", () => {
+    const rooms = getAllMemoryRooms();
+
+    for (const [roomCode, room] of rooms.entries()) {
+      const game = room.game;
+      const player = game.getPlayers().find((p) => p.socketId === socket.id);
+      if (!player) continue;
+
+      player.connected = false;
+
+      io.to(roomCode).emit("receive_message", {
+        username: "server",
+        message: `${player.username} disconnected (waiting to reconnect...)`,
+        color: "orange",
+      });
+
+      player.disconnectTimeout = setTimeout(() => {
+        // if still not back → remove
+        if (!player.connected) {
+          game.removePlayerByUserId(player.userId);
+
+          io.to(roomCode).emit("receive_message", {
+            username: "server",
+            message: `${player.username} left the game`,
+            color: "red",
+          });
+
+          io.to(roomCode).emit("updatePlayers", game.getSafePlayers());
+
+          if (game.getPlayers().length === 0) {
+            deleteMemoryRoom(roomCode);
+          }
+        }
+      }, 15000);
+
+      return;
+    }
+  });
 };

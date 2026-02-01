@@ -5,6 +5,8 @@ class Player {
     this.username = username;
     this.score = 0;
     this.hasGuessed = false;
+    this.connected = true;
+    this.disconnectTimeout = null; 
   }
 
   addScore(points = 1) {

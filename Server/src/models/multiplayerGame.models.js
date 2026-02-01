@@ -18,22 +18,29 @@ export default class MultiplayerGame {
   }
 
   getRemainingTime() {
-    return Math.max(
-      0, Math.floor((this.roundEndsAt - Date.now()) / 1000)
-    )
+    return Math.max(0, Math.floor((this.roundEndsAt - Date.now()) / 1000));
   }
 
   addPlayer(player) {
     this.players.push(player);
   }
 
-  removePlayer(socketId) {
-    this.players = this.players.filter((p) => p.socketId !== socketId);
+  removePlayerByUserId(userId) {
+    this.players = this.players.filter((p) => p.userId !== userId);
   }
-  
 
   getPlayers() {
     return this.players;
+  }
+
+  getSafePlayers() {
+    return this.players.map((p) => ({
+      userId: p.userId,
+      username: p.username,
+      score: p.score,
+      connected: p.connected,
+      hasGuessed: p.hasGuessed,
+    }));
   }
 
   getUnUsedFrame(frames) {
@@ -50,9 +57,8 @@ export default class MultiplayerGame {
     this.correctAnswer = answer;
   }
 
-
   hasEveryoneGuessed() {
-    return this.players.every((p) => p.hasGuessed);
+    return this.players.filter((p) => p.connected).every((p) => p.hasGuessed);
   }
 
   startGame() {

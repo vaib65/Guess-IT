@@ -1,25 +1,26 @@
-import { useContext } from "react";
 import clock from "../../assets/clock.png";
-import { GameContext } from "../../context/GameContext";
 
-export default function Clock() {
-  const { time, round } = useContext(GameContext);
+const Clock = ({ time, round, totalRounds }) => {
+    const isLow = time <= 10;
+    return (
+    <div className="flex flex-col items-center text-black select-none mt-2">
+        <div className="relative w-20 h-20 flex items-center justify-center">
+            <img src={clock} alt="clock" className="w-full h-full object-contain" />
 
-  return (
-    <>
-      <div className="flex flex-col">
-        <div className="relative flex justify-center items-center w-24 h-24 mx-auto">
-          <img
-            className="w-full h-full object-contain"
-            src={clock}
-            alt="clock"
-          />
-          <span className="absolute text-3xl font-bold text-green-700 select-none">
-            {time}
-          </span>
+            <span
+                className={`absolute text-2xl font-extrabold ${
+                isLow ? "text-red-600 animate-pulse" : "text-green-700"
+                }`}
+            >
+                {time}
+            </span>
         </div>
-        Round {round} of 3
-      </div>
-    </>
-  );
-}
+
+        <div className="mt-1 text-sm font-semibold text-white">
+            Round {round} / {totalRounds}
+        </div>
+    </div>
+    );
+};
+
+export default Clock;
