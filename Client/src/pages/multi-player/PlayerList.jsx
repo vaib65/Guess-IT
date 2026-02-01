@@ -1,4 +1,4 @@
-import Player from "./Player";
+import Player from "./Player.jsx";
 
 const PlayerList = ({ players = [], currentUserId }) => {
   return (

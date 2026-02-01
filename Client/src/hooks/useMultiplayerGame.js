@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { socket } from "../config/socket";
+import { socket } from "../config/socket.js";
 import toast from "react-hot-toast";
 
 export function useMultiplayerGame({ userId, navigate }) {

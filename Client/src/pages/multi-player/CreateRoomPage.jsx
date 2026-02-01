@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import Button from "../../components/ui/Button";
-import InputField from "../../components/ui/InputField";
+import Button from "../../components/ui/Button.jsx";
+import InputField from "../../components/ui/InputField.jsx";
 import {useNavigate} from "react-router-dom"
-import { getUserId } from "../../utils/userId";
+import { getUserId } from "../../utils/userId.js";
 import toast from "react-hot-toast";
-import { socket } from "../../config/socket";
+import { socket } from "../../config/socket.js";
 const CreateRoomPage = () => {
   const [username, setUsername] = useState("");
   const [roomCode, setRoomCode] = useState("");
