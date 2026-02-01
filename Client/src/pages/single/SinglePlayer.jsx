@@ -1,4 +1,4 @@
-import Frame from "../../components/Single/Frame.jsx";
+import Frame from "../../components/single/Frame.jsx";
 import { useEffect, useState } from "react";
 import {
   startSinglePlayer,
