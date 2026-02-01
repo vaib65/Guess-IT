@@ -1,115 +1,37 @@
 import Clock from "../../components/multiplayer/Clock.jsx";
 import { useNavigate, useParams } from "react-router-dom";
 import { getUserId } from "../../utils/userId.js";
-import { useEffect, useState } from "react";
+import {useState } from "react";
 import { socket } from "../../config/socket.js";
 import PlayerList from "./PlayerList.jsx";
-import toast from "react-hot-toast";
 import Chat from "../../components/multiplayer/Chat.jsx";
 import FrameDisplay from "../../components/multiplayer/FrameDisplay.jsx";
 import Modal from "../../components/multiplayer/Modal.jsx";
+import { useMultiplayerGame } from "../../hooks/useMultiplayerGame.js";
 
 const GamePage = () => {
   const { roomCode } = useParams();
   const userId = getUserId();
+  const TOTAL_ROUNDS = 5;
 
-  const [players, setPlayers] = useState([]);
-  const [frame, setFrame] = useState(null);
-  const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
-  const [gameOverData, setGameOverData] = useState(null);
-  const [correctAnswer, setCorrectAnswer] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showCountdown, setShowCountdown] = useState(false);
-  const [countdown, setCountdown] = useState(5);
-  const [time, setTime] = useState(0);
-  const [round, setRound] = useState(1);
-  const [totalRounds] = useState(5);
-
   const navigate = useNavigate();
+
+  const {
+    players,
+    frame,
+    time,
+    round,
+    messages,
+    correctAnswer,
+    showCountdown,
+    countdown,
+  } = useMultiplayerGame({ userId, navigate });
+
   //select host first player
   const isHost = players.length > 0 && players[0].userId === userId;
 
-useEffect(() => {
-  if (!frame && players.length > 0) {
-    setShowModal(true);
-  } else {
-    setShowModal(false);
-  }
-}, [frame, players.length]);
-
-
-useEffect(() => {
-  socket.emit("reconnectPlayer", { userId });
-
-  // 🔹 reconnect restores ONLY volatile game state
-  socket.on("reconnected", ({ frame, time,players, round }) => {
-    setFrame(frame);
-    setTime(time);
-    setPlayers(players);
-    setRound(round);
-  });
-
-  socket.on("gameStarting", () => {
-    setShowModal(true); // 👈 force open for everyone
-    setShowCountdown(true);
-    setCountdown(5);
-
-    let count = 5;
-    const interval = setInterval(() => {
-      count -= 1;
-      setCountdown(count);
-
-      if (count === 0) {
-        clearInterval(interval);
-        setShowCountdown(false);
-      }
-    }, 1000);
-  });
-
-
-  // 🔹 SINGLE SOURCE OF TRUTH for players
-  socket.on("updatePlayers", setPlayers);
-
- socket.on("newFrame", (frame) => {
-   setFrame(frame);
-   setShowModal(false);
-   setShowCountdown(false);
- });
-  socket.on("timerUpdate", setTime);
-
-  socket.on("receive_message", (msg) => setMessages((prev) => [...prev, msg]));
-
-  socket.on("correctAnswer", ({ answer }) => setCorrectAnswer(answer));
-
-  socket.on("startNewRound", ({ round }) => {
-    setRound(round);
-    setCorrectAnswer(null);
-  });
-
-  socket.on("gameStopped", ({ message }) => {
-    toast.error(message || "Game stopped");
-    navigate("/");
-  });
-
-  socket.on("gameOver", ({ players, winner }) => {
-    navigate("/winner", { state: { players, winner } });
-  });
-
-  return () => {
-    socket.off("reconnected");
-    socket.off("gameStarting");
-    socket.off("updatePlayers");
-    socket.off("newFrame");
-    socket.off("timerUpdate");
-    socket.off("receive_message");
-    socket.off("correctAnswer");
-    socket.off("startNewRound");
-    socket.off("gameStopped");
-    socket.off("gameOver");
-  };
-}, [navigate, userId]);
-
+  const showModal = !frame && players.length > 0;
 
   const sendGuess = (guess) => {
     socket.emit("sendGuess", {
@@ -132,16 +54,7 @@ useEffect(() => {
           Guess<span className="text-red-700">.IT</span>
         </div>
 
-        {/* {isHost && !frame && (
-          <button
-            onClick={handleStartGame}
-            className="px-4 py-1 rounded bg-green-600 hover:bg-green-700 text-white font-semibold"
-          >
-            Start Game
-          </button>
-        )} */}
-
-        <Clock time={time} round={round} totalRounds={totalRounds} />
+        <Clock time={time} round={round} totalRounds={TOTAL_ROUNDS} />
 
         {correctAnswer && (
           <div className="text-green-400 font-semibold text-2xl">

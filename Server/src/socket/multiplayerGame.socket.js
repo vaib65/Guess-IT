@@ -161,8 +161,8 @@ export const registerMultiplayerHandlers = (io, socket) => {
     socket.join(roomCode);
     socket.emit("roomJoined", { roomCode });
 
-    // send full state to THIS socket
-    socket.emit("reconnected", {
+    //sync State
+    socket.emit("syncState", {
       roomCode,
       frame: game.currentFrame,
       time: game.getRemainingTime(),
@@ -199,8 +199,8 @@ export const registerMultiplayerHandlers = (io, socket) => {
 
       socket.join(roomCode);
 
-      // 🔥 ALWAYS hydrate this socket
-      socket.emit("reconnected", {
+      // sync state
+      socket.emit("syncState", {
         roomCode,
         frame: game.currentFrame,
         time: game.getRemainingTime(),
@@ -208,11 +208,8 @@ export const registerMultiplayerHandlers = (io, socket) => {
         round: game.currentRound,
       });
 
-      // 🔥 ALSO sync others
       io.to(roomCode).emit("updatePlayers", game.getSafePlayers());
 
-      console.log(`Hydrated ${player.username} in room ${roomCode}`);
-      return;
     }
   });
 
@@ -332,7 +329,7 @@ export const registerMultiplayerHandlers = (io, socket) => {
       });
 
       player.disconnectTimeout = setTimeout(() => {
-        // if still not back → remove
+        // remove player if not back 
         if (!player.connected) {
           game.removePlayerByUserId(player.userId);
 
